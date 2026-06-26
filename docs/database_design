@@ -1,0 +1,45 @@
+# Database Design
+
+## Purpose
+
+This document describes the database structure for the Drone Inspection System.
+
+---
+
+### Drone
+
+- battery_level
+- status
+
+### Mission
+
+- mission_id
+- drone_id
+- inspection_area_id
+- start_time
+- end_time
+- status
+
+### Inspection Area
+
+- inspection_area_id
+- name
+- beacon_id
+- description
+
+### Image
+
+- image_id
+- mission_id
+- file_path
+- timestamp
+
+### AI Detection
+
+- detection_id
+- image_id
+- object_type
+- confidence
+- bounding_box
+
+---
