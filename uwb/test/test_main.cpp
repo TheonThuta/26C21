@@ -1,6 +1,7 @@
 #include "uwb_common.h"
 #include "uwb_timestamp.h"
 #include "uwb_ranging.h"
+#include "uwb_frame.h"
 #include <iostream>
 using namespace std;
 
@@ -49,5 +50,31 @@ int main() {
     cout << reply1(t) << endl;
     cout << round2(t) << endl;
     cout << reply2(t) << endl;
+
+    cout << timeOfFlightTicks(t) << endl;
+    cout << ticksToMeters(timeOfFlightTicks(t)) << endl;
+
+    std::uint8_t frame[kHeaderSize] = {};
+    writeHeader(frame, MessageType::Poll, 9, 3, 7);
+
+    FrameHeader h = readHeader(frame);
+    cout << static_cast<int>(h.type) << " "
+        << static_cast<int>(h.source) << " "
+        << static_cast<int>(h.destination) << " "
+        << static_cast<int>(h.sequence) << endl;
+
+    cout << boolalpha;
+    cout << isAddressedTo(h, 3) << endl;    // expect: true
+    cout << isAddressedTo(h, 4) << endl;    // expect: false
+
+    cout << isKnownType(h) << endl;          // h is the good poll from before, expect: true
+
+    std::uint8_t bad[kHeaderSize] = {99, 9, 3, 7};
+    FrameHeader badHeader = readHeader(bad);
+    cout << isKnownType(badHeader) << endl;  // expect: false
+
+    cout<<matchesExchange(h, 9, 7) << endl;
+    cout<<matchesExchange(h, 9, 8) << endl;
+    cout<<matchesExchange(h, 5, 7) << endl;
 }
 
