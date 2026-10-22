@@ -26,3 +26,5 @@ constexpr std::size_t kReportFrameSize = kHeaderSize + kReportPayloadSize;
 //anchor count and retry limit
 constexpr std::uint8_t kAnchorCount = 5;
 constexpr std::uint8_t kMaxAttempts = 2;
+
+constexpr std::uint8_t kUnsetId = 0;
