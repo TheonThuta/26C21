@@ -2,6 +2,8 @@
 #include "uwb_timestamp.h"
 #include "uwb_ranging.h"
 #include "uwb_frame.h"
+#include "uwb_anchor.h"
+#include "uwb_tag.h"
 #include <iostream>
 using namespace std;
 
@@ -17,7 +19,7 @@ void checkRoundTrip(std::uint64_t input, std::uint64_t expected) {
             << "expected " << expected
             << "got " << result << dec << endl;
     }
-}
+    }
 
 void checkDiff(std::uint64_t later, std::uint64_t earlier, std::uint64_t expected) {
     std::uint64_t result = timestampDiff(later, earlier);
@@ -31,50 +33,32 @@ void checkDiff(std::uint64_t later, std::uint64_t earlier, std::uint64_t expecte
 }
 
 int main() {
-    cout<< "Poll" << static_cast<int>(MessageType::Poll)<< endl;
-    cout<< "Response" << static_cast<int>(MessageType::Response)<< endl;
-    cout<< "Final" << static_cast<int>(MessageType::Final)<< endl;
-    cout<< "Report" << static_cast<int>(MessageType::Report)<< endl;
-
-    checkRoundTrip(0x0102030405, 0x0102030405);
-    checkRoundTrip(0, 0);
-    checkRoundTrip(0xFFFFFFFFFF, 0xFFFFFFFFFF);
-    checkRoundTrip(0x1FFFFFFFFFF, 0xFFFFFFFFFF);   // 41-bit input, top bit dropped
-
-    checkDiff(0x1000, 0x0800, 0x800);
-    checkDiff(0x5, 0xFFFFFFFFFB, 10);
-    checkDiff(0x300000000, 0x100000000, 0x200000000);
-
-    RangingTimestamps t = {1000, 4200, 10200, 2100, 5100, 11300};
-    cout << round1(t) << endl;
-    cout << reply1(t) << endl;
-    cout << round2(t) << endl;
-    cout << reply2(t) << endl;
-
-    cout << timeOfFlightTicks(t) << endl;
-    cout << ticksToMeters(timeOfFlightTicks(t)) << endl;
-
-    std::uint8_t frame[kHeaderSize] = {};
-    writeHeader(frame, MessageType::Poll, 9, 3, 7);
-
-    FrameHeader h = readHeader(frame);
-    cout << static_cast<int>(h.type) << " "
-        << static_cast<int>(h.source) << " "
-        << static_cast<int>(h.destination) << " "
-        << static_cast<int>(h.sequence) << endl;
-
     cout << boolalpha;
-    cout << isAddressedTo(h, 3) << endl;    // expect: true
-    cout << isAddressedTo(h, 4) << endl;    // expect: false
+    std::uint8_t frame[kHeaderSize] = {};
 
-    cout << isKnownType(h) << endl;          // h is the good poll from before, expect: true
+    // anchor side: id 2 answers a poll from tag 9, sequence 1
+    AnchorSituation anchor;
+    anchor.anchorId = 2;
+    writeHeader(frame, MessageType::Poll, 9, 2, 1);
+    handlePoll(anchor, readHeader(frame), 2100);
+    recordResponseSent(anchor, 5100);
+    writeHeader(frame, MessageType::Final, 9, 2, 1);
+    handleFinal(anchor, readHeader(frame), 11300);
+    std::uint8_t report[kReportFrameSize] = {};
+    buildReport(anchor, report);
 
-    std::uint8_t bad[kHeaderSize] = {99, 9, 3, 7};
-    FrameHeader badHeader = readHeader(bad);
-    cout << isKnownType(badHeader) << endl;  // expect: false
+    // tag side: same exchange
+    TagSituation t;
+    t.tagId = 9;
+    beginAttempt(t, 2, 1000);                           // sequence becomes 1
+    writeHeader(frame, MessageType::Response, 2, 9, 1);
+    handleResponse(t, readHeader(frame), 4200);
+    recordFinalSent(t, 10200);
 
-    cout<<matchesExchange(h, 9, 7) << endl;
-    cout<<matchesExchange(h, 9, 8) << endl;
-    cout<<matchesExchange(h, 5, 7) << endl;
+    AnchorResult res;
+    cout << handleReport(t, report, kReportFrameSize, res) << endl;   // expect: true
+    cout << res.valid << " " << res.distance << endl;                 // expect: true 0.469...
+    cout << static_cast<int>(t.state) << endl;                        // expect: 1 (idle again)
+    cout << handleReport(t, report, kReportFrameSize, res) << endl;   // expect: false (already finished)
 }
 

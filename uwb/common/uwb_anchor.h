@@ -1,5 +1,6 @@
 #pragma once
 #include "uwb_frame.h"
+#include "uwb_timestamp.h"
 
 enum class AnchorState : std::uint8_t {
     Listening = 1,
@@ -48,6 +49,35 @@ inline bool handleFinal(AnchorSituation& a, const FrameHeader& h, std::uint64_t 
     }
     a.finalReceived = rxTime;
     a.state = AnchorState::Listening;
+
+    return true;
+}
+
+inline void endExchange(AnchorSituation& a) {
+    a.state = AnchorState::Listening;
+    a.tagId = kUnsetId;
+    a.sequence = 0;
+    a.pollReceived = 0;
+    a.responseSent = 0;
+    a.finalReceived = 0;
+}
+
+inline bool recordResponseSent(AnchorSituation& a, std::uint64_t txTime) {
+    if (a.state != AnchorState::WaitingForFinal) {
+        return false;
+    }
+    a.responseSent = txTime;
+    return true;
+}
+
+inline bool buildReport(const AnchorSituation& a, std::uint8_t* out) {
+    if (a.state != AnchorState::Listening) {
+        return false;
+    }
+    writeHeader(out, MessageType::Report, a.anchorId, a.tagId, a.sequence);
+    packTimestamp(a.pollReceived, out + kHeaderSize + 0 * kTimestampSize);
+    packTimestamp(a.responseSent, out + kHeaderSize + 1 * kTimestampSize);
+    packTimestamp(a.finalReceived, out + kHeaderSize + 2 * kTimestampSize);
 
     return true;
 }
